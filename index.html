@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pro Transformation</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="theme-color" content="#F2F2F7">
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg: #F2F2F7;
+            --card: #FFFFFF;
+            --primary: #007AFF;
+            --text-main: #000000;
+            --text-sec: #8E8E93;
+            --border: #C6C6C8;
+            --danger: #FF3B30;
+            --success: #34C759;
+        }
+
+        body {
+            background-color: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            color: var(--text-main);
+            user-select: none;
+        }
+
+        /* Layout & Scroll */
+        .app-layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 120px; padding-top: max(20px, env(safe-area-inset-top)); }
+
+        /* Apple Card Design */
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            margin-bottom: 16px;
+        }
+        
+        .card-header {
+            padding: 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 0.5px solid rgba(0,0,0,0.05);
+        }
+        
+        .card-body { padding: 16px; }
+
+        /* Typography */
+        h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+        h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+        h3 { font-size: 16px; font-weight: 600; }
+        .label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-sec); letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+        .subtext { font-size: 13px; color: var(--text-sec); }
+
+        /* Inputs & Buttons */
+        .input-clean {
+            background: rgba(118,118,128,0.12);
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 16px;
+            width: 100%;
+            border: none;
+            outline: none;
+            color: var(--text-main);
+        }
+        
+        .btn {
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            border-radius: 12px; font-weight: 600; font-size: 16px; padding: 14px;
+            width: 100%; transition: opacity 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:active { opacity: 0.7; }
+        .btn-secondary { background: #E5E5EA; color: black; }
+        .btn-danger { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+
+        /* Navigation */
+        .tab-bar {
+            position: fixed; bottom: 0; width: 100%;
+            background: rgba(249,249,249,0.94);
+            backdrop-filter: blur(20px);
+            border-top: 0.5px solid rgba(0,0,0,0.3);
+            padding-bottom: env(safe-area-inset-bottom);
+            height: calc(55px + env(safe-area-inset-bottom));
+            display: flex; justify-content: space-around; align-items: center; z-index: 50;
+        }
+        .tab-item { color: #999; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 60px; }
+        .tab-item svg { width: 26px; height: 26px; stroke-width: 2px; }
+        .tab-item span { font-size: 10px; font-weight: 500; }
+        .tab-item.active { color: var(--primary); }
+
+        /* Horizontal Scroll Chart */
+        .chart-scroll { overflow-x: auto; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+        .chart-wrapper { height: 220px; min-width: 600px; }
+
+        /* Modal */
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: flex; justify-content: center; align-items: flex-end; }
+        .modal-panel { background: #F2F2F7; width: 100%; height: 90vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Utility */
+        .badge { font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; }
+        .badge-blue { background: rgba(0,122,255,0.1); color: var(--primary); }
+        .badge-green { background: rgba(52,199,89,0.1); color: var(--success); }
+        
+        .loader {
+            border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white;
+            border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="app" class="app-layout">
+    <main class="scroll-area px-4">
+        
+        <div class="mt-2 mb-6">
+            <h1 class="text-black mb-1">Coach Pro</h1>
+            <div class="flex justify-between items-end">
+                <p class="subtext font-medium">Woche {{ currentWeek }} von 24 • {{ currentPhase }}</p>
+                <div class="flex flex-col items-end">
+                    <span class="label mb-0">Level {{ userStats.level }}</span>
+                    <div class="w-24 h-2 bg-gray-200 rounded-full mt-1 overflow-hidden">
+                        <div class="h-full bg-blue-600" :style="{width: xpPercentage + '%'}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentTab === 'plan'">
+            
+            <div v-if="!weeklyPlan" class="py-16 flex flex-col items-center text-center">
+                <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-6">
+                    <svg class="w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                </div>
+                <h3 class="mb-2">Dein Startschuss</h3>
+                <p class="subtext mb-8 max-w-[260px]">Startdatum: 07. Januar.<br>Erstelle deinen ersten 6-Monats-Transformations-Plan.</p>
+                <button @click="currentTab = 'coach'" class="btn btn-primary">Plan erstellen</button>
+            </div>
+
+            <div v-else>
+                <div class="bg-gray-200/80 p-1 rounded-xl flex mb-6">
+                    <button @click="viewMode = 'today'" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all" :class="viewMode === 'today' ? 'bg-white shadow text-black' : 'text-gray-500'">Heute</button>
+                    <button @click="viewMode = 'week'" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all" :class="viewMode === 'week' ? 'bg-white shadow text-black' : 'text-gray-500'">Ganze Woche</button>
+                </div>
+
+                <div v-if="viewMode === 'today'">
+                    
+                    <div class="card border-l-4 border-orange-500 overflow-hidden">
+                        <div class="bg-orange-50/50 px-4 py-3 border-b border-orange-100/50 flex justify-between items-center">
+                            <span class="label text-orange-700 mb-0">Daily Quest</span>
+                            <span class="badge bg-orange-100 text-orange-700">+{{ currentDayPlan?.daily_challenge.xp }} XP</span>
+                        </div>
+                        <div class="card-body">
+                            <h3 class="mb-1">{{ currentDayPlan?.daily_challenge.titel }}</h3>
+                            <div v-if="currentDayPlan && !currentDayPlan.daily_challenge.done" class="mt-4 flex gap-2">
+                                <input v-model="currentDayPlan.daily_challenge.intensity_feedback" class="input-clean text-sm" placeholder="Feedback / Intensität...">
+                                <button @click="completeChallenge(currentDayPlan)" class="btn bg-black text-white w-auto px-6 py-2 text-sm">Erledigt</button>
+                            </div>
+                            <div v-else class="mt-2 flex items-center gap-2 text-green-600 text-sm font-bold">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Quest abgeschlossen
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="text-base font-semibold">Zusätzliche Aktivität</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="subtext mb-2">Manuell eintragen & von KI bewerten lassen.</p>
+                            <div class="flex gap-2">
+                                <input v-model="extraActivityInput" class="input-clean" placeholder="z.B. 30 Min Fußball, Möbel schleppen...">
+                                <button @click="evaluateExtraActivity" :disabled="isEvaluating || !extraActivityInput" class="btn btn-primary w-auto px-4">
+                                    <span v-if="isEvaluating" class="loader"></span>
+                                    <span v-else>Bewerten</span>
+                                </button>
+                            </div>
+                            <div v-if="currentDayPlan?.extra_logs && currentDayPlan.extra_logs.length > 0" class="mt-4 border-t border-gray-100 pt-2">
+                                <span class="label mb-2">Heute hinzugefügt</span>
+                                <div v-for="(log, idx) in currentDayPlan.extra_logs" :key="idx" class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 text-sm">
+                                    <span>{{ log.activity }}</span>
+                                    <span class="font-bold text-green-600">+{{ log.xp }} XP</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="currentDayPlan" class="mb-4">
+                        <span class="label px-1">Training</span>
+                        <div class="card">
+                            <div class="card-header bg-white">
+                                <div>
+                                    <h3 class="text-lg">{{ currentDayPlan.titel }}</h3>
+                                    <p class="subtext">{{ currentDayPlan.fokus }}</p>
+                                </div>
+                                <div class="w-3 h-3 rounded-full border border-gray-200" :class="currentDayPlan.completed ? 'bg-green-500 border-green-500' : ''"></div>
+                            </div>
+                            
+                            <div class="card-body bg-gray-50/50">
+                                <div class="bg-white p-3 rounded-xl border border-gray-200 mb-3 flex items-center justify-between shadow-sm">
+                                    <div>
+                                        <span class="label mb-1">Schritte (Ziel: 8k)</span>
+                                        <input type="number" v-model="currentDayPlan.steps" class="font-mono font-bold text-lg outline-none w-24 bg-transparent" placeholder="0">
+                                    </div>
+                                    <button @click="checkSteps(currentDayPlan)" :disabled="currentDayPlan.daily_xp_claimed" class="badge" :class="currentDayPlan.daily_xp_claimed ? 'badge-green' : 'bg-gray-100 text-gray-600'">
+                                        {{ currentDayPlan.daily_xp_claimed ? 'Claimed' : '+50 XP' }}
+                                    </button>
+                                </div>
+
+                                <div v-for="(ex, i) in currentDayPlan.uebungen" :key="i" class="bg-white p-4 rounded-xl border border-gray-200 mb-3 shadow-sm relative pl-4 overflow-hidden">
+                                    <div class="absolute left-0 top-0 bottom-0 w-1" :class="ex.typ === 'kraft' ? 'bg-blue-600' : 'bg-indigo-500'"></div>
+                                    
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <div class="font-bold text-sm">{{ ex.name }}</div>
+                                            <div class="text-xs text-gray-500 mt-1 font-medium bg-gray-100 inline-block px-1.5 py-0.5 rounded">{{ ex.vorgabe }}</div>
+                                            <div v-if="ex.hinweis" class="text-[11px] text-gray-400 mt-1">{{ ex.hinweis }}</div>
+                                        </div>
+                                        <button @click="toggleDone(currentDayPlan, ex)" class="w-8 h-8 rounded-full border flex items-center justify-center transition-all" 
+                                            :class="ex.erledigt ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white'">
+                                            <svg v-if="ex.erledigt" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    </div>
+
+                                    <div v-if="!ex.erledigt" class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <span class="label">{{ ex.typ === 'kraft' ? 'Last (kg)' : 'Dauer' }}</span>
+                                            <input v-model="ex.ist_wert" class="input-clean text-sm font-mono py-2" :placeholder="ex.typ === 'kraft' ? 'kg' : 'min'">
+                                        </div>
+                                        <div>
+                                            <span class="label">RPE (1-10)</span>
+                                            <input type="number" v-model="ex.ist_rpe" class="input-clean text-sm font-mono py-2" placeholder="-">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="viewMode === 'week'">
+                    <div v-for="(day, dIndex) in weeklyPlan.tage" :key="dIndex" class="card">
+                        <div @click="day.expanded = !day.expanded" class="card-header cursor-pointer active:bg-gray-50">
+                            <div class="flex items-center gap-4">
+                                <div class="flex flex-col items-center w-10 border-r border-gray-200 pr-3">
+                                    <span class="label mb-0">{{ day.wochentag.substring(0,2) }}</span>
+                                    <span class="text-lg font-bold" :class="isToday(day.wochentag) ? 'text-blue-600' : ''">{{ day.datum_tag.split('.')[0] }}</span>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold">{{ day.titel }}</h3>
+                                    <p class="text-xs text-gray-500">{{ day.fokus }}</p>
+                                </div>
+                            </div>
+                            <div class="w-2 h-2 rounded-full" :class="day.completed ? 'bg-green-500' : 'bg-gray-300'"></div>
+                        </div>
+                        
+                        <div v-if="day.expanded" class="p-4 bg-gray-50 border-t border-gray-200 text-sm">
+                            <div v-for="ex in day.uebungen" :key="ex.name" class="flex justify-between py-1 border-b border-gray-200 last:border-0">
+                                <span>{{ ex.name }}</span>
+                                <span class="font-mono text-gray-500 text-xs">{{ ex.vorgabe }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button @click="finishWeek" class="btn btn-secondary mt-8 text-xs uppercase tracking-widest">Woche abschließen & Archivieren</button>
+                </div>
+
+            </div>
+        </div>
+
+        <div v-if="currentTab === 'stats'">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="text-lg">Deine Transformation</h3>
+                    <div class="badge badge-blue">Streak: {{ currentStreak }}</div>
+                </div>
+                <div class="card-body">
+                    <p class="subtext mb-2">XP Verlauf seit Start (07. Jan)</p>
+                    <div class="chart-scroll">
+                        <div class="chart-wrapper" :style="{ width: chartWidth + 'px' }">
+                            <canvas id="xpChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <span class="label px-1 mt-6">Wochenarchiv</span>
+            <div v-if="history.length === 0" class="text-center subtext py-4">Noch keine Daten.</div>
+            <div v-for="(entry, idx) in history" :key="idx" class="card px-4 py-3 flex justify-between items-center opacity-80">
+                <div>
+                    <div class="font-bold text-sm text-black">{{ entry.erstellt_am }}</div>
+                    <div class="text-xs text-gray-500">{{ entry.plan_data.wochen_fokus }}</div>
+                </div>
+                <div class="font-mono text-xs text-gray-400">KW {{ entry.woche_nr }}</div>
+            </div>
+        </div>
+
+        <div v-if="currentTab === 'coach'">
+            <div class="card">
+                <div class="card-header"><h3 class="text-lg">Planner</h3></div>
+                <div class="card-body">
+                    <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
+                        <span class="label text-blue-800">Aktueller Status</span>
+                        <ul class="text-xs text-blue-900 list-disc list-inside mt-1 leading-relaxed">
+                            <li>Woche {{ currentWeek }} ({{ currentPhase }})</li>
+                            <li>Ziel: High Intensity / Athletik</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <span class="label">Fokus / Anpassungen</span>
+                        <textarea v-model="coachInput" rows="3" class="input-clean" placeholder="z.B. Mehr Beine, weniger Cardio am Mittwoch..."></textarea>
+                    </div>
+
+                    <button @click="preparePrompt" :disabled="isLoading" class="btn btn-primary">
+                        <span v-if="isLoading">Berechne...</span>
+                        <span v-else>Vorschau & Generieren</span>
+                    </button>
+                    
+                    <div v-if="!apiKey" class="text-center mt-3 text-xs text-red-500 font-bold">API Key fehlt im Setup!</div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentTab === 'setup'">
+            <div class="card">
+                <div class="card-header"><h3 class="text-lg">Einstellungen</h3></div>
+                <div class="card-body space-y-4">
+                    <div>
+                        <span class="label">OpenAI API Key</span>
+                        <input type="password" v-model="apiKey" @change="saveSettings" class="input-clean" placeholder="sk-...">
+                    </div>
+                    
+                    <div class="pt-4 border-t border-gray-100">
+                        <span class="label">Daten verwalten</span>
+                        <div class="grid grid-cols-2 gap-3 mt-2">
+                            <button @click="exportData" class="btn btn-secondary text-sm">Backup Export</button>
+                            <label class="btn btn-secondary text-sm cursor-pointer">
+                                Backup Import
+                                <input type="file" @change="importData" class="hidden" accept=".json">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-100">
+                        <button @click="hardReset" class="btn btn-danger">App komplett zurücksetzen</button>
+                        <p class="text-xs text-gray-400 text-center mt-2">Setzt das Startdatum auf HEUTE zurück.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center mt-6">
+                <p class="text-[10px] text-gray-300 font-mono uppercase">Version 10.0 • Flexibility</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div v-if="showPromptModal" class="modal-bg" @click.self="showPromptModal = false">
+        <div class="modal-panel">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
+                <h3 class="text-lg font-bold">Prompt Check</h3>
+                <button @click="showPromptModal = false" class="text-gray-500 font-bold p-2">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4">
+                <pre class="text-[11px] font-mono text-gray-700 whitespace-pre-wrap">{{ pendingPromptDisplay }}</pre>
+            </div>
+            <div class="p-4 bg-white border-t border-gray-200 flex gap-3 pb-safe">
+                <button @click="showPromptModal = false" class="btn btn-secondary">Abbrechen</button>
+                <button @click="executePrompt" class="btn btn-primary">Absenden</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="tab-bar">
+        <button @click="currentTab = 'plan'" class="tab-item" :class="{active: currentTab === 'plan'}">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            <span>Plan</span>
+        </button>
+        <button @click="currentTab = 'stats'" class="tab-item" :class="{active: currentTab === 'stats'}">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            <span>Stats</span>
+        </button>
+        <button @click="currentTab = 'coach'" class="tab-item" :class="{active: currentTab === 'coach'}">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+            <span>Planer</span>
+        </button>
+        <button @click="currentTab = 'setup'" class="tab-item" :class="{active: currentTab === 'setup'}">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>
+            <span>Setup</span>
+        </button>
+    </nav>
+</div>
+
+<script>
+const SYSTEM_PROMPT_TEMPLATE = `
+Du bist ein Elite-Coach (Hypertrophie/Athletik) für eine 6-Monats-Transformation.
+Datum heute: {{CURRENT_DATE}}.
+Status: Woche {{WEEK_NUM}} von 24 ({{PHASE_NAME}}).
+
+WICHTIGSTE REGELN:
+1. Generiere ein Array "tage" mit EXAKT 7 OBJEKTEN (für die nächsten 7 Tage, startend heute).
+2. Startdatum ist {{CURRENT_DATE}}.
+3. KEINE Emojis.
+4. Equipment nutzen: CrossFit Zelt, Rower, Gym, Kurse.
+5. Intensität: Hoch.
+6. Unterscheide "kraft" und "cardio".
+
+FORMAT (JSON):
+{
+  "wochen_fokus": "String",
+  "tage": [
+    {
+      "wochentag": "Donnerstag",
+      "datum_tag": "08.01.",
+      "titel": "Full Body Power",
+      "fokus": "Kraft",
+      "nutrition_tip": "String",
+      "daily_challenge": { "titel": "String", "xp": 200, "done": false },
+      "uebungen": [
+        { "name": "Deadlifts", "typ": "kraft", "vorgabe": "5x5 @ 100kg", "hinweis": "...", "erledigt": false }
+      ]
+    }
+  ]
+}
+`;
+
+const { createApp } = Vue;
+
+createApp({
+    data() {
+        return {
+            currentTab: 'plan',
+            viewMode: 'today', // 'today' or 'week'
+            apiKey: localStorage.getItem('pro_apikey') || '',
+            weeklyPlan: JSON.parse(localStorage.getItem('pro_plan') || 'null'),
+            history: JSON.parse(localStorage.getItem('pro_history') || '[]'),
+            userStats: JSON.parse(localStorage.getItem('pro_stats') || JSON.stringify({ level: 1, xp: 0, startDate: new Date().toISOString() })),
+            dailyXpHistory: JSON.parse(localStorage.getItem('pro_xp_history') || '[]'),
+            coachInput: '',
+            extraActivityInput: '',
+            isEvaluating: false,
+            isLoading: false,
+            showPromptModal: false,
+            pendingPromptMessages: null,
+            pendingPromptDisplay: ''
+        }
+    },
+    computed: {
+        currentWeek() {
+            const start = new Date(this.userStats.startDate);
+            const now = new Date();
+            const diffDays = Math.ceil(Math.abs(now - start) / (1000 * 60 * 60 * 24)); 
+            return Math.ceil(diffDays / 7) || 1;
+        },
+        currentPhase() {
+            const w = this.currentWeek;
+            if(w <= 8) return "Phase 1: Fundament";
+            if(w <= 16) return "Phase 2: Hypertrophie";
+            return "Phase 3: Performance";
+        },
+        nextLevelXp() { return this.userStats.level * 1000; },
+        xpPercentage() { return Math.min(100, (this.userStats.xp / this.nextLevelXp) * 100); },
+        
+        chartWidth() {
+            const start = new Date(this.userStats.startDate);
+            const now = new Date();
+            const daysSinceStart = Math.ceil((now - start) / (1000 * 60 * 60 * 24)) + 1;
+            const displayDays = Math.max(daysSinceStart, 10);
+            return Math.max(window.innerWidth - 40, displayDays * 25);
+        },
+
+        displayDays() {
+            if (!this.weeklyPlan || !this.weeklyPlan.tage) return [];
+            if (this.viewMode === 'week') return this.weeklyPlan.tage;
+            
+            const daysMap = ['sonntag','montag','dienstag','mittwoch','donnerstag','freitag','samstag'];
+            const todayName = daysMap[new Date().getDay()];
+            
+            const todayPlan = this.weeklyPlan.tage.find(t => t.wochentag.toLowerCase() === todayName);
+            return todayPlan ? [todayPlan] : [this.weeklyPlan.tage[0]];
+        },
+        
+        currentDayPlan() {
+            if(!this.weeklyPlan || !this.weeklyPlan.tage) return null;
+            const daysMap = ['sonntag','montag','dienstag','mittwoch','donnerstag','freitag','samstag'];
+            const todayName = daysMap[new Date().getDay()];
+            return this.weeklyPlan.tage.find(t => t.wochentag.toLowerCase() === todayName) || this.weeklyPlan.tage[0];
+        },
+        
+        currentStreak() {
+            let streak = 0;
+            const sorted = [...this.dailyXpHistory].sort((a,b) => new Date(b.date) - new Date(a.date));
+            if(sorted.length === 0) return 0;
+            return sorted.filter(x => x.xp > 0).length;
+        }
+    },
+    watch: {
+        currentTab(newVal) { if(newVal === 'stats') this.$nextTick(() => this.renderChart()); }
+    },
+    methods: {
+        isToday(dayName) {
+            const days = ['sonntag','montag','dienstag','mittwoch','donnerstag','freitag','samstag'];
+            return dayName.toLowerCase() === days[new Date().getDay()];
+        },
+        saveSettings() { localStorage.setItem('pro_apikey', this.apiKey); },
+        saveStats() { localStorage.setItem('pro_stats', JSON.stringify(this.userStats)); },
+        savePlan() { localStorage.setItem('pro_plan', JSON.stringify(this.weeklyPlan)); },
+
+        toggleDay(day) { day.expanded = !day.expanded; },
+
+        addXP(amount) {
+            this.userStats.xp += amount;
+            if(this.userStats.xp >= this.nextLevelXp) {
+                this.userStats.xp -= this.nextLevelXp;
+                this.userStats.level++;
+            }
+            // Log History
+            const today = new Date().toISOString().split('T')[0];
+            let entry = this.dailyXpHistory.find(x => x.date === today);
+            if(entry) entry.xp += amount;
+            else this.dailyXpHistory.push({date: today, xp: amount});
+            
+            localStorage.setItem('pro_xp_history', JSON.stringify(this.dailyXpHistory));
+            this.saveStats();
+        },
+
+        toggleDone(day, ex) {
+            ex.erledigt = !ex.erledigt;
+            this.addXP(ex.erledigt ? 50 : -50);
+            this.savePlan();
+        },
+        checkSteps(day) {
+            if(day.steps >= 8000 && !day.daily_xp_claimed) {
+                day.daily_xp_claimed = true;
+                this.addXP(100);
+                this.savePlan();
+            }
+        },
+        completeChallenge(day) {
+            if(!day.daily_challenge.done) {
+                day.daily_challenge.done = true;
+                this.addXP(day.daily_challenge.xp);
+                this.savePlan();
+            }
+        },
+
+        finishWeek() {
+            if(confirm("Woche abschließen?")) {
+                this.history.unshift({ 
+                    erstellt_am: new Date().toLocaleDateString(), 
+                    woche_nr: this.currentWeek, 
+                    plan_data: this.weeklyPlan 
+                });
+                localStorage.setItem('pro_history', JSON.stringify(this.history));
+                this.weeklyPlan = null;
+                localStorage.removeItem('pro_plan');
+                this.currentTab = 'coach';
+            }
+        },
+
+        // --- NEW: EXTRA ACTIVITY ---
+        async evaluateExtraActivity() {
+            if (!this.extraActivityInput) return;
+            if (!this.apiKey) return alert("Key fehlt!");
+            
+            this.isEvaluating = true;
+            
+            const prompt = `
+                Bewerte diese zusätzliche Aktivität sportwissenschaftlich für einen athletischen Nutzer: "${this.extraActivityInput}".
+                Gib XP (10 für sehr leicht bis 300 für brutal) und einen kurzen Kommentar (max 10 Wörter).
+                Format: JSON { "xp": number, "comment": string }
+            `;
+
+            try {
+                const req = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+                    body: JSON.stringify({
+                        model: "gpt-4o-mini",
+                        messages: [{ role: "system", content: "Du bist ein Fairer Schiedsrichter für Fitness-XP." }, { role: "user", content: prompt }],
+                        response_format: { type: "json_object" }
+                    })
+                });
+                const res = await req.json();
+                const data = JSON.parse(res.choices[0].message.content);
+                
+                // Add to XP
+                this.addXP(data.xp);
+                
+                // Add to current day list
+                if(!this.currentDayPlan.extra_logs) this.currentDayPlan.extra_logs = [];
+                this.currentDayPlan.extra_logs.push({ activity: this.extraActivityInput, xp: data.xp, comment: data.comment });
+                
+                this.savePlan();
+                this.extraActivityInput = '';
+                alert(`+${data.xp} XP! ${data.comment}`);
+                
+            } catch (e) { alert("Fehler bei Bewertung"); }
+            finally { this.isEvaluating = false; }
+        },
+
+        // --- BACKUP ---
+        exportData() {
+            const data = { stats: this.userStats, history: this.history, xp: this.dailyXpHistory, plan: this.weeklyPlan };
+            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        },
+        importData(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const d = JSON.parse(ev.target.result);
+                    if(d.stats) localStorage.setItem('pro_stats', JSON.stringify(d.stats));
+                    if(d.history) localStorage.setItem('pro_history', JSON.stringify(d.history));
+                    if(d.xp) localStorage.setItem('pro_xp_history', JSON.stringify(d.xp));
+                    if(d.plan) localStorage.setItem('pro_plan', JSON.stringify(d.plan));
+                    location.reload();
+                } catch(err) { alert("Import Fehler"); }
+            };
+            reader.readAsText(file);
+        },
+        
+        hardReset() { 
+            if(confirm("ALLES LÖSCHEN und Startdatum auf HEUTE setzen?")) { 
+                localStorage.clear(); 
+                location.reload(); 
+            } 
+        },
+
+        // --- CHART ---
+        renderChart() {
+            const ctx = document.getElementById('xpChart');
+            if(!ctx) return;
+            if(window.myChart) window.myChart.destroy();
+            
+            const start = new Date(this.userStats.startDate);
+            const end = new Date();
+            const allDates = [];
+            
+            let curr = new Date(start);
+            while(curr <= end) {
+                allDates.push(curr.toISOString().split('T')[0]);
+                curr.setDate(curr.getDate() + 1);
+            }
+
+            const data = allDates.map(date => {
+                const entry = this.dailyXpHistory.find(x => x.date === date);
+                return entry ? entry.xp : 0;
+            });
+            
+            const labels = allDates.map(date => {
+                const d = new Date(date);
+                return d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'});
+            });
+
+            window.myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'XP',
+                        data: data,
+                        backgroundColor: data.map(v => v > 0 ? '#007AFF' : '#E5E5EA'),
+                        borderRadius: 4,
+                        barThickness: 20,
+                        maxBarThickness: 30
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: {display:false} },
+                    scales: { 
+                        y: { display: false }, 
+                        x: { grid: {display: false} }
+                    }
+                }
+            });
+        },
+
+        // --- AI PROMPT ---
+        preparePrompt() {
+            if(!this.apiKey) return alert("API Key fehlt");
+            
+            const todayFull = new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            
+            let systemPrompt = SYSTEM_PROMPT_TEMPLATE
+                .replace(/{{CURRENT_DATE}}/g, todayFull)
+                .replace(/{{WEEK_NUM}}/g, this.currentWeek)
+                .replace(/{{PHASE_NAME}}/g, this.currentPhase);
+            
+            const context = {
+                feedback: this.coachInput,
+                stats: this.userStats,
+                history_sample: this.history.length > 0 ? this.history[0] : "Neustart",
+                equipment: ["CrossFit Zelt", "Rower", "Boxen", "Gym"],
+                intensity: "HIGH"
+            };
+
+            this.pendingPromptMessages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: JSON.stringify(context) }
+            ];
+            
+            this.pendingPromptDisplay = systemPrompt + "\n\n" + JSON.stringify(context, null, 2);
+            this.showPromptModal = true;
+        },
+
+        async executePrompt() {
+            this.showPromptModal = false;
+            this.isLoading = true;
+            try {
+                const req = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+                    body: JSON.stringify({
+                        model: "gpt-4o-mini",
+                        messages: this.pendingPromptMessages,
+                        response_format: { type: "json_object" }
+                    })
+                });
+                const res = await req.json();
+                if(res.error) throw new Error(res.error.message);
+                
+                const newPlan = JSON.parse(res.choices[0].message.content);
+                newPlan.tage.forEach(t => { 
+                    t.expanded = this.isToday(t.wochentag); 
+                    t.daily_xp_claimed = false; 
+                });
+                
+                this.weeklyPlan = newPlan;
+                this.savePlan();
+                this.currentTab = 'plan';
+                this.viewMode = 'today';
+                this.coachInput = '';
+            } catch (e) { alert(e.message); } 
+            finally { this.isLoading = false; }
+        }
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
